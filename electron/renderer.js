@@ -15,11 +15,11 @@
  * =============================================================================
  */
 
-import {MDCSnackbar} from '@material/snackbar';
+import { MDCSnackbar } from '@material/snackbar';
 import * as tf from '@tensorflow/tfjs';
-import {ipcRenderer} from 'electron';
+import { ipcRenderer } from 'electron';
 
-import {ImageClassifier} from './image_classifier';
+import { ImageClassifier } from './image_classifier';
 
 const searchResultsDiv = document.getElementById('search-results');
 
@@ -48,6 +48,12 @@ ipcRenderer.on('loading-model', (event) => {
   showProgress('Loading model...');
 });
 
+/** IPC handler for the "Loading an image" event. */
+ipcRenderer.on('loading-image', (event, args) => {
+  showProgress(`Loading images... ${args.idx} / ${args.cnt}`);
+});
+
+
 /** IPC handler for the "model is running inference" event. */
 ipcRenderer.on('inference-ongoing', (event) => {
   showProgress('Classifying images...');
@@ -63,10 +69,10 @@ ipcRenderer.on('inference-ongoing', (event) => {
 ipcRenderer.on('frontend-inference-data', async (event, arg) => {
   showProgress('Classifying images in frontend...');
   await imageClassifer.ensureModelLoaded(
-      () => showProgress('Loading frontend model...'));
+    () => showProgress('Loading frontend model...'));
   const results = await imageClassifer.searchFromFiles(
-      arg.imageFilePaths, getTargetWords(),
-      () => showProgress('Running image search in frontend...'));
+    arg.imageFilePaths, getTargetWords(),
+    () => showProgress('Running image search in frontend...'));
   displaySearchResults(results);
 });
 
@@ -76,7 +82,7 @@ const imageClassifer = new ImageClassifier();
 const targetWordsInput = document.getElementById('target-words');
 function getTargetWords() {
   return targetWordsInput.value.trim().split(',')
-      .filter(x => x.length > 0).map(x => x.trim().toLowerCase());
+    .filter(x => x.length > 0).map(x => x.trim().toLowerCase());
 }
 
 const snackbar = new MDCSnackbar(document.getElementById('main-snackbar'));
@@ -97,14 +103,14 @@ function displaySearchResults(results) {
   hideProgress();
   if (results.foundItems.length === 0) {
     showSnackbar(
-        `No match for "${results.targetWords.join(',')}" ` +
-        `after searching ${results.numSearchedFiles} file(s). ` +
-        `Model inference took ${results.tElapsedMillis.toFixed(1)} ms`);
+      `No match for "${results.targetWords.join(',')}" ` +
+      `after searching ${results.numSearchedFiles} file(s). ` +
+      `Model inference took ${results.tElapsedMillis.toFixed(1)} ms`);
   } else {
     showSnackbar(
-        `Found ${results.foundItems.length} ` +
-        `matches from ${results.numSearchedFiles} image(s). ` +
-        `Model inference took ${results.tElapsedMillis.toFixed(1)} ms`);
+      `Found ${results.foundItems.length} ` +
+      `matches from ${results.numSearchedFiles} image(s). ` +
+      `Model inference took ${results.tElapsedMillis.toFixed(1)} ms`);
     results.foundItems.forEach(foundItem => {
       createFoundCard(searchResultsDiv, foundItem);
     });
@@ -126,7 +132,7 @@ function showSnackbar(message, timeoutMillis = 4000) {
 
 const filesDialogButton = document.getElementById('files-dialog-button');
 const frontendInferenceCheckbox =
-    document.getElementById('frontend-inference-checkbox');
+  document.getElementById('frontend-inference-checkbox');
 
 /** The callback for selecting a number of files to search over. */
 filesDialogButton.addEventListener('click', async () => {
@@ -137,13 +143,13 @@ filesDialogButton.addEventListener('click', async () => {
   const frontendInference = frontendInferenceCheckbox.checked;
   if (frontendInference) {
     await imageClassifer.ensureModelLoaded(
-        () => showProgress('Loading frontend model...'));
+      () => showProgress('Loading frontend model...'));
   }
-  ipcRenderer.send('get-files', {targetWords, frontendInference});
+  ipcRenderer.send('get-files', { targetWords, frontendInference });
 });
 
 const directoriesDialogButton =
-    document.getElementById('directories-dialog-button');
+  document.getElementById('directories-dialog-button');
 
 /** The callback for selecting a number of folder to search in, recursively. */
 directoriesDialogButton.addEventListener('click', async () => {
@@ -154,9 +160,9 @@ directoriesDialogButton.addEventListener('click', async () => {
   const frontendInference = frontendInferenceCheckbox.checked;
   if (frontendInference) {
     await imageClassifer.ensureModelLoaded(
-        () => showProgress('Loading frontend model...'));
+      () => showProgress('Loading frontend model...'));
   }
-  ipcRenderer.send('get-directories', {targetWords, frontendInference});
+  ipcRenderer.send('get-directories', { targetWords, frontendInference });
 });
 
 /** Helper method for limiting the number of characters shown on screen. */
@@ -202,7 +208,7 @@ function createFoundCard(rootDiv, foundItem) {
     const li = document.createElement('li');
     if (classNameAndProb.prob >= 0.001) {
       li.textContent =
-          `${classNameAndProb.className}: ${classNameAndProb.prob.toFixed(3)}`;
+        `${classNameAndProb.className}: ${classNameAndProb.prob.toFixed(3)}`;
       ul.appendChild(li);
     }
   }
@@ -216,15 +222,15 @@ function createFoundCard(rootDiv, foundItem) {
 }
 
 const clearSearchResultsButton =
-    document.getElementById('clear-search-results');
+  document.getElementById('clear-search-results');
 function updateClearSearchResultsButtonStatus() {
   clearSearchResultsButton.style.display =
-      searchResultsDiv.firstChild ? 'block' : 'none';
+    searchResultsDiv.firstChild ? 'block' : 'none';
 }
 updateClearSearchResultsButtonStatus();
 
 clearSearchResultsButton.addEventListener('click', () => {
-  while(searchResultsDiv.firstChild) {
+  while (searchResultsDiv.firstChild) {
     searchResultsDiv.removeChild(searchResultsDiv.firstChild);
   }
   updateClearSearchResultsButtonStatus();

@@ -17,11 +17,11 @@
 
 import * as tf from '@tensorflow/tfjs';
 
-import {IMAGENET_CLASSES} from './imagenet_classes';
-import {readImageAsTensor} from './image_utils';
+import { IMAGENET_CLASSES } from './imagenet_classes';
+import { readImageAsTensor } from './image_utils';
 
 const MOBILENET_MODEL_URL =
-    'https://storage.googleapis.com/tfjs-models/tfjs/mobilenet_v1_1.0_224/model.json'
+  'https://storage.googleapis.com/tfjs-models/tfjs/mobilenet_v1_1.0_224/model.json'
 
 /**
  * A classifier for images.
@@ -55,7 +55,7 @@ export class ImageClassifier {
     return tf.tidy(() => {
       const probs = this.model.predict(images);
       const sorted = true;
-      const {values, indices} = tf.topk(probs, topK, sorted);
+      const { values, indices } = tf.topk(probs, topK, sorted); // returns two tensors of shape [12, 5]
 
       const classProbs = values.arraySync();
       const classIndices = indices.arraySync();
@@ -96,7 +96,7 @@ export class ImageClassifier {
         const fs = require('fs');
         const path = require('path');
         const cachedModelJsonPath = path.join(
-            this.getFileSystemCacheDirectory_(), 'model.json');
+          this.getFileSystemCacheDirectory_(), 'model.json');
         if (fs.existsSync(cachedModelJsonPath)) {
           cachedModelJsonUrl = `file://${cachedModelJsonPath}`;
           console.log(`Found cached model at ${cachedModelJsonUrl}`);
@@ -105,7 +105,7 @@ export class ImageClassifier {
 
       console.time('Model loading');
       this.model = await tf.loadLayersModel(
-          cachedModelJsonUrl == null ?
+        cachedModelJsonUrl == null ?
           MOBILENET_MODEL_URL : cachedModelJsonUrl);
       console.timeEnd('Model loading');
 
@@ -135,9 +135,12 @@ export class ImageClassifier {
   async searchFromFiles(filePaths, targetWords, inferenceCallback) {
     // Read the content of the image files as tensors with dimensions
     // that match the requirement of the image classifier.
-    const {height, width} = this.getImageSize();
+    const { height, width } = this.getImageSize();
     const imageTensors = [];
-    for (const file of filePaths) {
+    for (const { file, i } of filePaths.map((file, i) => ({ file, i }))) {
+      if (inferenceCallback != null) {
+        inferenceCallback('loading-image', { idx: i, cnt: filePaths.length });
+      }
       const imageTensor = await readImageAsTensor(file, height, width);
       imageTensors.push(imageTensor);
     }
@@ -146,7 +149,7 @@ export class ImageClassifier {
     const axis = 0;
     const batchImageTensor = tf.concat(imageTensors, axis);
     if (inferenceCallback != null) {
-      inferenceCallback();
+      inferenceCallback('inference-ongoing');
     }
 
     // Run inference.
@@ -155,7 +158,7 @@ export class ImageClassifier {
     const tElapsedMillis = tf.util.now() - t0;
 
     const foundItems = searchForKeywords(
-        classNamesAndProbs, filePaths, targetWords);
+      classNamesAndProbs, filePaths, targetWords);
 
     // TensorFlow.js memory cleanup.
     tf.dispose([imageTensors, batchImageTensor, imageTensors]);
@@ -172,7 +175,7 @@ export class ImageClassifier {
   getImageSize() {
     if (this.model == null) {
       throw new Error(
-          `Model is not loaded yet. Call ensureModelLoaded() first.`);
+        `Model is not loaded yet. Call ensureModelLoaded() first.`);
     }
     return {
       height: this.model.inputs[0].shape[1],
@@ -207,7 +210,7 @@ export class ImageClassifier {
  *   All matches to the target words.
  */
 export function searchForKeywords(classNamesAndProbs, filePaths, targetWords) {
-   // Filter through the output class names and probilities to look for
+  // Filter through the output class names and probilities to look for
   // matches.
   const foundItems = [];
   for (let i = 0; i < classNamesAndProbs.length; ++i) {
@@ -215,8 +218,8 @@ export function searchForKeywords(classNamesAndProbs, filePaths, targetWords) {
     let matchWord = null;
     for (const nameAndProb of namesAndProbs) {
       const classTokens = nameAndProb.className.toLowerCase().trim()
-          .replace(/[,\/]/g, ' ')
-          .split(' ').filter(x => x.length > 0);
+        .replace(/[,\/]/g, ' ')
+        .split(' ').filter(x => x.length > 0);
       for (const word of targetWords) {
         if (classTokens.indexOf(word) !== -1) {
           matchWord = word;
@@ -246,10 +249,10 @@ export function searchForKeywords(classNamesAndProbs, filePaths, targetWords) {
  */
 function isNode() {
   return (
-      typeof process === 'object' &&
-      typeof process.versions === 'object' &&
-      typeof process.versions.node !== 'undefined' &&
-      process.type !== 'renderer');
+    typeof process === 'object' &&
+    typeof process.versions === 'object' &&
+    typeof process.versions.node !== 'undefined' &&
+    process.type !== 'renderer');
 }
 
 /** Get the user's home directory (Node.js only). */

@@ -15,19 +15,24 @@
  * =============================================================================
  */
 
-import {app, dialog, ipcMain, BrowserWindow} from 'electron';
+import { app, dialog, ipcMain, BrowserWindow } from 'electron';
 import '@tensorflow/tfjs-node';
 
-import {IMAGE_EXTENSION_NAMES, findImagesFromDirectoriesRecursive} from './image_utils';
-import {ImageClassifier} from './image_classifier';
+import { IMAGE_EXTENSION_NAMES, findImagesFromDirectoriesRecursive } from './image_utils';
+import { ImageClassifier } from './image_classifier';
 
 let mainWindow;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
+    webPreferences: {
+      nodeIntegration: true,
+    },
     height: 800,
     width: 1200
   });
+
+  // mainWindow.webContents.openDevTools()
 
   mainWindow.loadFile('index.html');
 
@@ -64,19 +69,19 @@ ipcMain.on('get-files', (event, arg) => {
     }]
   }, async (imageFilePaths) => {
     if (imageFilePaths == null ||
-        Array.isArray(imageFilePaths) && imageFilePaths.length === 0) {
+      Array.isArray(imageFilePaths) && imageFilePaths.length === 0) {
       // Handle cases in which no file is selected.
       return;
     }
     if (arg.frontendInference) {
-      event.sender.send('frontend-inference-data', {imageFilePaths});
+      event.sender.send('frontend-inference-data', { imageFilePaths });
     } else {
       await imageClassifier.ensureModelLoaded(
-          () => event.sender.send('loading-model'));
+        () => event.sender.send('loading-model'));
       // Perform inference in the backend (i.e., in this process).
       const results = await imageClassifier.searchFromFiles(
-          imageFilePaths, arg.targetWords,
-          () => event.sender.send('inference-ongoing'));
+        imageFilePaths, arg.targetWords,
+        (eventCode, data) => event.sender.send(eventCode, data));
       event.sender.send('search-response', results);
     }
   });
@@ -86,13 +91,13 @@ ipcMain.on('get-files', (event, arg) => {
 ipcMain.on('get-directories', (event, arg) => {
   dialog.showOpenDialog({
     properties: ['openDirectory', 'multiSelections']
-  }, async (dirPaths) => {
+  }).then(async (dirPaths) => {
     if (dirPaths == null || Array.isArray(dirPaths) && dirPaths.length === 0) {
       // Handle cases in which no directory is selected.
       return;
     }
     const imageFilePaths = [];
-    for (const dirPath of dirPaths) {
+    for (const dirPath of dirPaths.filePaths) {
       imageFilePaths.push(...findImagesFromDirectoriesRecursive(dirPath));
     }
     if (imageFilePaths.length === 0) {
@@ -101,15 +106,21 @@ ipcMain.on('get-directories', (event, arg) => {
       return;
     }
     if (arg.frontendInference) {
-      event.sender.send('frontend-inference-data', {imageFilePaths});
+      event.sender.send('frontend-inference-data', { imageFilePaths });
     } else {
       await imageClassifier.ensureModelLoaded(
-          () => event.sender.send('loading-model'));
+        () => event.sender.send('loading-model'));
       // Perform inference in the backend (i.e., in this process).
       const results = await imageClassifier.searchFromFiles(
-          imageFilePaths, arg.targetWords,
-          () => event.sender.send('inference-ongoing'));
+        imageFilePaths, arg.targetWords,
+        (eventCode, eventData) => {
+          console.log(eventCode, eventData)
+          event.sender.send(eventCode, eventData)
+        });
       event.sender.send('search-response', results);
     }
-  });
+  }).catch((err) => {
+    console.error(err)
+  })
+
 });
