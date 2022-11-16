@@ -21,9 +21,9 @@
  * The data used in this demo is the
  * [Jena weather archive
  * dataset](https://www.kaggle.com/pankrzysiu/weather-archive-jena).
- * 
+ *
  * This file is used to load the Jena weather data in both
- * - the browser: see [index.js](./index.js), and 
+ * - the browser: see [index.js](./index.js), and
  * - the Node.js backend environment: see [train-rnn.js](./train-rnn.js).
  */
 
@@ -31,7 +31,7 @@ import * as tf from '@tensorflow/tfjs';
 
 const LOCAL_JENA_WEATHER_CSV_PATH = './jena_climate_2009_2016.csv';
 const REMOTE_JENA_WEATHER_CSV_PATH =
-    'https://storage.googleapis.com/learnjs-data/jena_climate/jena_climate_2009_2016.csv';
+  'https://storage.googleapis.com/learnjs-data/jena_climate/jena_climate_2009_2016.csv';
 
 /**
  * A class that fetches and processes the Jena weather archive data.
@@ -40,7 +40,7 @@ const REMOTE_JENA_WEATHER_CSV_PATH =
  * batches of training or validation data.
  */
 export class JenaWeatherData {
-  constructor() {}
+  constructor() { }
 
   /**
    * Load and preprocess data.
@@ -53,15 +53,15 @@ export class JenaWeatherData {
     let response;
     try {
       response = await fetch(LOCAL_JENA_WEATHER_CSV_PATH);
-    } catch (err) {}
+    } catch (err) { }
 
     if (response != null &&
-        (response.statusCode === 200 || response.statusCode === 304)) {
+      (response.statusCode === 200 || response.statusCode === 304)) {
       console.log('Loading data from local path');
     } else {
       response = await fetch(REMOTE_JENA_WEATHER_CSV_PATH);
       console.log(
-          `Loading data from remote path: ${REMOTE_JENA_WEATHER_CSV_PATH}`);
+        `Loading data from remote path: ${REMOTE_JENA_WEATHER_CSV_PATH}`);
     }
     const csvData = await response.text();
 
@@ -96,10 +96,6 @@ export class JenaWeatherData {
       const items = line.split(',');
       const parsed = this.parseDateTime_(items[0]);
       const newDateTime = parsed.date;
-      if (this.dateTime.length > 0 &&
-          newDateTime.getTime() <=
-              this.dateTime[this.dateTime.length - 1].getTime()) {
-      }
 
       this.dateTime.push(newDateTime);
       this.data.push(items.slice(1).map(x => +x));
@@ -110,7 +106,7 @@ export class JenaWeatherData {
     this.numColumns = this.data[0].length;
     this.numColumnsExcludingTarget = this.data[0].length - 1;
     console.log(
-        `this.numColumnsExcludingTarget = ${this.numColumnsExcludingTarget}`);
+      `this.numColumnsExcludingTarget = ${this.numColumnsExcludingTarget}`);
 
     await this.calculateMeansAndStddevs_();
   }
@@ -140,10 +136,10 @@ export class JenaWeatherData {
     const date = new Date(Date.UTC(year, month, day, hours, minutes, seconds));
     const yearOnset = new Date(year, 0, 1);
     const normalizedDayOfYear =
-        (date - yearOnset) / (366 * 1000 * 60 * 60 * 24);
+      (date - yearOnset) / (366 * 1000 * 60 * 60 * 24);
     const dayOnset = new Date(year, month, day);
     const normalizedTimeOfDay = (date - dayOnset) / (1000 * 60 * 60 * 24)
-    return {date, normalizedDayOfYear, normalizedTimeOfDay};
+    return { date, normalizedDayOfYear, normalizedTimeOfDay };
   }
 
 
@@ -162,7 +158,7 @@ export class JenaWeatherData {
       for (const columnName of this.dataColumnNames) {
         // TODO(cais): See if we can relax this limit.
         const data =
-            tf.tensor1d(this.getColumnData(columnName).slice(0, 6 * 24 * 365));
+          tf.tensor1d(this.getColumnData(columnName).slice(0, 6 * 24 * 365));
         const moments = tf.moments(data);
         this.means.push(moments.mean.dataSync());
         this.stddevs.push(Math.sqrt(moments.variance.dataSync()));
@@ -206,7 +202,7 @@ export class JenaWeatherData {
   }
 
   getColumnData(
-      columnName, includeTime, normalize, beginIndex, length, stride) {
+    columnName, includeTime, normalize, beginIndex, length, stride) {
     const columnIndex = this.dataColumnNames.indexOf(columnName);
     tf.util.assert(columnIndex >= 0, `Invalid column name: ${columnName}`);
 
@@ -221,11 +217,11 @@ export class JenaWeatherData {
     }
     const out = [];
     for (let i = beginIndex; i < beginIndex + length && i < this.numRows;
-         i += stride) {
+      i += stride) {
       let value = normalize ? this.normalizedData[i][columnIndex] :
-                              this.data[i][columnIndex];
+        this.data[i][columnIndex];
       if (includeTime) {
-        value = {x: this.dateTime[i].getTime(), y: value};
+        value = { x: this.dateTime[i].getTime(), y: value };
       }
       out.push(value);
     }
@@ -270,9 +266,9 @@ export class JenaWeatherData {
    *     `[batchSize, 1]`.
    */
   getNextBatchFunction(
-      shuffle, lookBack, delay, batchSize, step, minIndex, maxIndex, normalize,
-      includeDateTime) {
-    let startIndex = minIndex + lookBack;
+    shuffle, lookBack, delay, batchSize, step, minIndex, maxIndex, normalize,
+    includeDateTime) {
+    let indexCursor = minIndex + lookBack;
     const lookBackSlices = Math.floor(lookBack / step);
 
     return {
@@ -288,8 +284,8 @@ export class JenaWeatherData {
           }
         } else {
           // If `shuffle` is `false`, the starting row indices will be sequential.
-          let r = startIndex;
-          for (; r < startIndex + batchSize && r < maxIndex; ++r) {
+          let r = indexCursor;
+          for (; r < indexCursor + batchSize && r < maxIndex; ++r) {
             rowIndices.push(r);
           }
           if (r >= maxIndex) {
@@ -298,10 +294,10 @@ export class JenaWeatherData {
         }
 
         const numExamples = rowIndices.length;
-        startIndex += numExamples;
+        indexCursor += numExamples;
 
         const featureLength =
-            includeDateTime ? this.numColumns + 2 : this.numColumns;
+          includeDateTime ? this.numColumns + 2 : this.numColumns;
         const samples = tf.buffer([numExamples, lookBackSlices, featureLength]);
         const targets = tf.buffer([numExamples, 1]);
         // Iterate over examples. Each example contains a number of rows.
@@ -327,14 +323,14 @@ export class JenaWeatherData {
             }
 
             const value = normalize ?
-                this.normalizedData[r + delay][this.tempCol] :
-                this.data[r + delay][this.tempCol];
+              this.normalizedData[r + delay][this.tempCol] :
+              this.data[r + delay][this.tempCol];
             targets.set(value, j, 0);
             exampleRow++;
           }
         }
         return {
-          value: {xs: samples.toTensor(), ys: targets.toTensor()},
+          value: { xs: samples.toTensor(), ys: targets.toTensor() },
           done
         };
       }
