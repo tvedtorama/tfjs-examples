@@ -283,6 +283,7 @@ export class JenaWeatherData {
 				}
 
 				const numExamples = rowIndices.length
+        // numExamples should always be the same as batchSize, except when we run out of data
 				indexCursor += numExamples
 
 				const featureLength = includeDateTime ? this.numColumns + 2 : this.numColumns
