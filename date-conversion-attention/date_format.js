@@ -39,11 +39,13 @@ const MONTH_NAMES_3LETTER =
 const MIN_DATE = new Date('1950-01-01').getTime();
 const MAX_DATE = new Date('2050-01-01').getTime();
 
-export const INPUT_LENGTH = 12   // Maximum length of all input formats.
-export const OUTPUT_LENGTH = 10  // Length of 'YYYY-MM-DD'.
+/** Maximum input length.  Inputs will be padded if shorter */
+export const INPUT_LENGTH = 12
+/** Length of output ISO string. ('YYYY-MM-DD') */
+export const OUTPUT_LENGTH = 10
 
-// Use "\n" for padding for both input and output. It has to be at the
-// beginning so that `mask_zero=True` can be used in the keras model.
+/** The vocabulary mapping of the input.  Numbers, and 3-letter month names are mashed together.
+ * Any duplicate characters are removed.  New line ("\n") is included at position 0, for some `mask_zero=True` stuff in Keras. */
 export const INPUT_VOCAB = '\n0123456789/-., ' +
     MONTH_NAMES_3LETTER.join('')
         .split('')
@@ -52,9 +54,10 @@ export const INPUT_VOCAB = '\n0123456789/-., ' +
         })
         .join('');
 
-// OUTPUT_VOCAB includes an start-of-sequence (SOS) token, represented as
-// '\t'. Note that the date strings are represented in terms of their
-// constituent characters, not words or anything else.
+/** The output vocabulary, for producing the ISO dates.
+ * Note that the date strings are represented in terms of their
+ * constituent characters, not words or anything else.
+ * Includes an start-of-sequence (SOS) token, represented as '\t'. */
 export const OUTPUT_VOCAB = '\n\t0123456789-';
 
 export const START_CODE = 1;
@@ -257,6 +260,7 @@ export function encodeInputDateStrings(dateStrings) {
         if (index === -1) {
           throw new Error(`Unknown char: ${char}`);
         }
+        // NOT one-hot encoded!
         x.set(index, i, j);
       }
     }
@@ -267,15 +271,14 @@ export function encodeInputDateStrings(dateStrings) {
 /**
  * Encode a number of output date strings as a `tf.Tensor`.
  *
- * The encoding is a sequence of integer indices.
+ * The encoding is a sequence of integer indices into the vocabulary.
  *
- * @param {string[]} dateStrings An array of output date strings, must be in the
- *   ISO date format (YYYY-MM-DD).
+ * @param {string[]} dateStrings An array of output date strings, in ISO date format (YYYY-MM-DD).
  * @returns {tf.Tensor} Integer indices of the characters as a `tf.Tensor`, of
  *   dtype `int32` and shape `[numExamples, outputLength]`, where `outputLength`
  *   is the length of the standard output format (i.e., `10`).
  */
-export function encodeOutputDateStrings(dateStrings, oneHot = false) {
+export function encodeOutputDateStrings(dateStrings) {
   const n = dateStrings.length;
   const x = tf.buffer([n, OUTPUT_LENGTH], 'int32');
   for (let i = 0; i < n; ++i) {
@@ -288,6 +291,7 @@ export function encodeOutputDateStrings(dateStrings, oneHot = false) {
       if (index === -1) {
         throw new Error(`Unknown char: ${char}`);
       }
+      // NB: The index is used directly, no one-hot encoding or scaling to [0, 1]
       x.set(index, i, j);
     }
   }
