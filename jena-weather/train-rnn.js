@@ -26,132 +26,115 @@
  *   logic.
  */
 
-import {ArgumentParser} from 'argparse';
+import {ArgumentParser} from "argparse"
 
-import {JenaWeatherData} from './data';
-import {buildModel, getBaselineMeanAbsoluteError, trainModel} from './models';
+import {JenaWeatherData} from "./data"
+import {buildModel, getBaselineMeanAbsoluteError, trainModel} from "./models"
 
-global.fetch = require('node-fetch');
+global.fetch = require("node-fetch")
 
 function parseArguments() {
-  const parser =
-      new ArgumentParser({description: 'Train RNNs for Jena weather problem'});
-  parser.addArgument('--modelType', {
-    type: 'string',
-    defaultValue: 'gru',
-    optionStrings: ['baseline', 'gru', 'simpleRNN'],
-    // TODO(cais): Add more model types, e.g., gru with recurrent dropout.
-    help: 'Type of the model to train. Use "baseline" to compute the ' +
-    'commonsense baseline prediction error.'
-  });
-  parser.addArgument('--gpu', {
-    action: 'storeTrue',
-    help: 'Use GPU'
-  });
-  parser.addArgument('--lookBack', {
-    type: 'int',
-    defaultValue: 10 * 24 * 6,
-    help: 'Look-back period (# of rows) for generating features'
-  });
-  parser.addArgument('--step', {
-    type: 'int',
-    defaultValue: 6,
-    help: 'Step size (# of rows) used for generating features'
-  });
-  parser.addArgument('--delay', {
-    type: 'int',
-    defaultValue: 24 * 6,
-    help: 'How many steps (# of rows) in the future to predict the ' +
-        'temperature for'
-  });
-  parser.addArgument('--normalize', {
-    defaultValue: true,
-    help: 'Used normalized feature values (default: true)'
-  });
-  parser.addArgument('--includeDateTime', {
-    action: 'storeTrue',
-    help: 'Used date and time features (default: false)'
-  });
-  parser.addArgument(
-      '--batchSize',
-      {type: 'int', defaultValue: 128, help: 'Batch size for training'});
-  parser.addArgument(
-      '--epochs',
-      {type: 'int', defaultValue: 20, help: 'Number of training epochs'});
-  parser.addArgument( '--earlyStoppingPatience', {
-    type: 'int',
-    defaultValue: 2,
-    help: 'Optional patience number for EarlyStoppingCallback'
-   });
-  parser.addArgument('--logDir', {
-    type: 'string',
-    help: 'Optional tensorboard log directory, to which the loss and ' +
-    'accuracy will be logged during model training.'
-  });
-  parser.addArgument('--logUpdateFreq', {
-    type: 'string',
-    defaultValue: 'batch',
-    optionStrings: ['batch', 'epoch'],
-    help: 'Frequency at which the loss and accuracy will be logged to ' +
-    'tensorboard.'
-  });
-  return parser.parseArgs();
+	const parser = new ArgumentParser({description: "Train RNNs for Jena weather problem"})
+	parser.addArgument("--modelType", {
+		type: "string",
+		defaultValue: "gru",
+		optionStrings: ["baseline", "gru", "simpleRNN"],
+		// TODO(cais): Add more model types, e.g., gru with recurrent dropout.
+		help: 'Type of the model to train. Use "baseline" to compute the ' + "commonsense baseline prediction error.",
+	})
+	parser.addArgument("--gpu", {
+		action: "storeTrue",
+		help: "Use GPU",
+	})
+	parser.addArgument("--lookBack", {
+		type: "int",
+		defaultValue: 10 * 24 * 6,
+		help: "Look-back period (# of rows) for generating features",
+	})
+	parser.addArgument("--step", {
+		type: "int",
+		defaultValue: 6,
+		help: "Step size (# of rows) used for generating features",
+	})
+	parser.addArgument("--delay", {
+		type: "int",
+		defaultValue: 24 * 6,
+		help: "How many steps (# of rows) in the future to predict the " + "temperature for",
+	})
+	parser.addArgument("--normalize", {
+		defaultValue: true,
+		help: "Used normalized feature values (default: true)",
+	})
+	parser.addArgument("--includeDateTime", {
+		action: "storeTrue",
+		help: "Used date and time features (default: false)",
+	})
+	parser.addArgument("--batchSize", {type: "int", defaultValue: 128, help: "Batch size for training"})
+	parser.addArgument("--epochs", {type: "int", defaultValue: 20, help: "Number of training epochs"})
+	parser.addArgument("--earlyStoppingPatience", {
+		type: "int",
+		defaultValue: 2,
+		help: "Optional patience number for EarlyStoppingCallback",
+	})
+	parser.addArgument("--logDir", {
+		type: "string",
+		help: "Optional tensorboard log directory, to which the loss and " + "accuracy will be logged during model training.",
+	})
+	parser.addArgument("--logUpdateFreq", {
+		type: "string",
+		defaultValue: "batch",
+		optionStrings: ["batch", "epoch"],
+		help: "Frequency at which the loss and accuracy will be logged to " + "tensorboard.",
+	})
+	return parser.parseArgs()
 }
 
 async function main() {
-  const args = parseArguments();
-  let tfn;
-  if (args.gpu) {
-    console.log('Using GPU for training.');
-    tfn = require('@tensorflow/tfjs-node-gpu');
-  } else {
-    console.log('Using CPU for training.');
-    tfn = require('@tensorflow/tfjs-node');
-  }
+	const args = parseArguments()
+	let tfn
+	if (args.gpu) {
+		console.log("Using GPU for training.")
+		tfn = require("@tensorflow/tfjs-node-gpu")
+	} else {
+		console.log("Using CPU for training.")
+		tfn = require("@tensorflow/tfjs-node")
+	}
 
-  const jenaWeatherData = new JenaWeatherData();
-  console.log(`Loading Jena weather data...`);
-  await jenaWeatherData.load();
+	const jenaWeatherData = new JenaWeatherData()
+	console.log(`Loading Jena weather data...`)
+	await jenaWeatherData.load()
 
-  if (args.modelType === 'baseline') {
-    console.log('Calculating commonsense baseline mean absolute error...');
-    const baselineError = await getBaselineMeanAbsoluteError(
-        jenaWeatherData, args.normalize, args.includeDateTime, args.lookBack,
-        args.step, args.delay);
-    console.log(
-        `Commonsense baseline mean absolute error: ` +
-        `${baselineError.toFixed(6)}`);
-  } else {
-    let numFeatures = jenaWeatherData.getDataColumnNames().length;
-    const model = buildModel(
-        args.modelType, Math.floor(args.lookBack / args.step), numFeatures);
+	if (args.modelType === "baseline") {
+		console.log("Calculating commonsense baseline mean absolute error...")
+		const baselineError = await getBaselineMeanAbsoluteError(jenaWeatherData, args.normalize, args.includeDateTime, args.lookBack, args.step, args.delay)
+		console.log(`Commonsense baseline mean absolute error: ` + `${baselineError.toFixed(6)}`)
+	} else {
+		// How come the numFeatures can be given here - when it depends on the options, such as includeDateTime?
+		let numFeatures = jenaWeatherData.getDataColumnNames().length
+		const model = buildModel(args.modelType, Math.floor(args.lookBack / args.step), numFeatures)
 
-    let callback = [];
-    if (args.logDir != null) {
-      console.log(
-          `Logging to tensorboard. ` +
-          `Use the command below to bring up tensorboard server:\n` +
-          `  tensorboard --logdir ${args.logDir}`);
-      callback.push(tfn.node.tensorBoard(args.logDir, {
-        updateFreq: args.logUpdateFreq
-      }));
-    }
-    if (args.earlyStoppingPatience != null) {
-      console.log(
-          `Using earlyStoppingCallback with patience ` +
-          `${args.earlyStoppingPatience}.`);
-      callback.push(tfn.callbacks.earlyStopping({
-        patience: args.earlyStoppingPatience
-      }));
-    }
+		let callback = []
+		if (args.logDir != null) {
+			console.log(`Logging to tensorboard. ` + `Use the command below to bring up tensorboard server:\n` + `  tensorboard --logdir ${args.logDir}`)
+			callback.push(
+				tfn.node.tensorBoard(args.logDir, {
+					updateFreq: args.logUpdateFreq,
+				})
+			)
+		}
+		if (args.earlyStoppingPatience != null) {
+			console.log(`Using earlyStoppingCallback with patience ` + `${args.earlyStoppingPatience}.`)
+			callback.push(
+				tfn.callbacks.earlyStopping({
+					patience: args.earlyStoppingPatience,
+				})
+			)
+		}
 
-    await trainModel(
-        model, jenaWeatherData, args.normalize, args.includeDateTime,
-        args.lookBack, args.step, args.delay, args.batchSize, args.epochs,
-        callback);
-  }
+		await trainModel(model, jenaWeatherData, args.normalize, args.includeDateTime, args.lookBack, args.step, args.delay, args.batchSize, args.epochs, callback)
+	}
 }
 
 if (require.main === module) {
-  main();
+	main()
 }
