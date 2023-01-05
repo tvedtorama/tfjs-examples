@@ -74,14 +74,19 @@ export function generateDataForTraining(trainSplit = 0.25, valSplit = 0.15) {
 
   function dateTuplesToTensor(dateTuples) {
     return tf.tidy(() => {
+      // Create a version of each date (-tuple) with each of the date formatters in input_fns
       const inputs =
           dateFormat.INPUT_FNS.map(fn => dateTuples.map(tuple => fn(tuple)));
       const inputStrings = [];
+      // Flatten the results
       inputs.forEach(inputs => inputStrings.push(...inputs));
+      // Convert the input to one-hot tensors
       const encoderInput =
           dateFormat.encodeInputDateStrings(inputStrings);
+      // Create ISO version of the dateTuples, strings
       const trainTargetStrings = dateTuples.map(
           tuple => dateFormat.dateTupleToYYYYDashMMDashDD(tuple));
+      // Seems the decoder input is always the full string?  It does not have to train on partial strings, because the RNN training sequence takes this into account, it must back track the content.
       let decoderInput =
           dateFormat.encodeOutputDateStrings(trainTargetStrings)
           .asType('float32');
@@ -89,7 +94,7 @@ export function generateDataForTraining(trainSplit = 0.25, valSplit = 0.15) {
       // one time step with respect to the encoder input. This accounts for
       // the step-by-step decoding that happens during inference time.
       decoderInput = tf.concat([
-        tf.ones([decoderInput.shape[0], 1]).mul(dateFormat.START_CODE),
+        tf.ones([decoderInput.shape[0], 1]).mul(dateFormat.START_CODE),  // Insert the start code
         decoderInput.slice(
             [0, 0], [decoderInput.shape[0], decoderInput.shape[1] - 1])
       ], 1).tile([dateFormat.INPUT_FNS.length, 1]);
