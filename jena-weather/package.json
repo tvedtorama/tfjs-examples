@@ -6,7 +6,8 @@
   "private": true,
   "dependencies": {
     "@tensorflow/tfjs": "^2.6.0",
-    "@tensorflow/tfjs-vis": "^1.4.3"
+    "@tensorflow/tfjs-vis": "^1.4.3",
+    "node-fetch": "^3.2.10"
   },
   "scripts": {
     "watch": "cross-env NODE_ENV=development parcel index.html --no-hmr --open",
@@ -32,5 +33,6 @@
   "resolutions": {
     "node-fetch": "2.6.7",
     "ansi-regex": "5.0.1"
-  }
+  },
+  "packageManager": "yarn@3.2.4"
 }
