@@ -25,7 +25,7 @@ const argparse = require('argparse');
 let tf;
 
 import('./data.js').then(exports => {
-  const {DATASET_PATH, TRAIN_IMAGES_FILE, IMAGE_FLAT_SIZE, loadImages, previewImage, batchImages,} = exports; const {encoder, decoder, vae, vaeLoss} = require('./model');
+  const { DATASET_PATH, TRAIN_IMAGES_FILE, IMAGE_FLAT_SIZE, loadImages, previewImage, batchImages, } = exports; const { encoder, decoder, vae, vaeLoss } = require('./model');
 
   let epochs; let batchSize;
 
@@ -48,67 +48,67 @@ import('./data.js').then(exports => {
  *   so that the training process can be monitored using TensorBoard.
  */
   async function train(images, vaeOpts, savePath, logDir) {
-  const encoderModel = encoder(vaeOpts);
-  const decoderModel = decoder(vaeOpts);
-  const vaeModel = vae(encoderModel, decoderModel);
+    const encoderModel = encoder(vaeOpts);
+    const decoderModel = decoder(vaeOpts);
+    const vaeModel = vae(encoderModel, decoderModel);
 
-  let summaryWriter;
-  if (logDir != null) {
-    console.log(`Logging loss values to ${logDir}.`);
-    console.log(
+    let summaryWriter;
+    if (logDir != null) {
+      console.log(`Logging loss values to ${logDir}.`);
+      console.log(
         `Use the following command to start the tensorboard backend server:`);
-    console.log(`  tensorboard --logdir ${logDir}`);
-    summaryWriter = tf.node.summaryFileWriter(logDir);
-  }
+      console.log(`  tensorboard --logdir ${logDir}`);
+      summaryWriter = tf.node.summaryFileWriter(logDir);
+    }
 
-  console.log('\n** Train Model **\n');
+    console.log('\n** Train Model **\n');
 
-  // Because we use a custom loss function, we will use optimizer.minimize
-  // instead of the more typical model.fit. We thus need to define an optimizer
-  // and manage batching the data ourselves.
+    // Because we use a custom loss function, we will use optimizer.minimize
+    // instead of the more typical model.fit. We thus need to define an optimizer
+    // and manage batching the data ourselves.
 
-  // Cteate the optimizer
-  const optimizer = tf.train.adam();
+    // Cteate the optimizer
+    const optimizer = tf.train.adam();
 
-  // Group the data into batches.
-  const batches = _.chunk(images, batchSize);
+    // Group the data into batches.
+    const batches = _.chunk(images, batchSize);
 
-  // Run the train loop.
-  let step = 0;
-  for (let i = 0; i < epochs; i++) {
-    console.log(`\nEpoch #${i + 1} of ${epochs}\n`);
-    for (let j = 0; j < batches.length; j++) {
-      const currentBatchSize = batches[j].length
-      const batchedImages = batchImages(batches[j]);
+    // Run the train loop.
+    let step = 0;
+    for (let i = 0; i < epochs; i++) {
+      console.log(`\nEpoch #${i + 1} of ${epochs}\n`);
+      for (let j = 0; j < batches.length; j++) {
+        const currentBatchSize = batches[j].length
+        const batchedImages = batchImages(batches[j]);
 
-      const reshaped =
+        const reshaped =
           batchedImages.reshape([currentBatchSize, vaeOpts.originalDim]);
 
-      // This is the model optimization step. We make a prediction
-      // compute loss and return it so that optimizer.minimize can
-      // adjust the weights of the model.
-      optimizer.minimize(() => {
-        const outputs = vaeModel.apply(reshaped);
-        const loss = vaeLoss(reshaped, outputs, vaeOpts);
-        process.stdout.write('.');
-        if (j % 50 === 0) {
-          console.log('\nLoss:', loss.dataSync()[0]);
-        }
-        if (summaryWriter != null) {
-          summaryWriter.scalar('loss', loss, step++);
-        }
+        // This is the model optimization step. We make a prediction
+        // compute loss and return it so that optimizer.minimize can
+        // adjust the weights of the model.
+        optimizer.minimize(() => {
+          const outputs = vaeModel.apply(reshaped);
+          const loss = vaeLoss(reshaped, outputs, vaeOpts);
+          process.stdout.write('.');
+          if (j % 50 === 0) {
+            console.log('\nLoss:', loss.dataSync()[0]);
+          }
+          if (summaryWriter != null) {
+            summaryWriter.scalar('loss', loss, step++);
+          }
 
-        return loss;
-      });
-      tf.dispose([batchedImages, reshaped]);
+          return loss;
+        });
+        tf.dispose([batchedImages, reshaped]);
+      }
+      console.log('');
+      // Generate a preview after each epoch
+      await generate(decoderModel, vaeOpts.latentDim);
     }
-    console.log('');
-    // Generate a preview after each epoch
-    await generate(decoderModel, vaeOpts.latentDim);
-  }
 
-  console.log('done training');
-  saveDecoder(savePath, decoderModel);
+    console.log('done training');
+    saveDecoder(savePath, decoderModel);
   }
 
   /**
@@ -118,78 +118,79 @@ import('./data.js').then(exports => {
  * @param {number} latentDimSize Dimensionality of the latent space.
  */
   async function generate(decoderModel, latentDimSize) {
-  const targetZ = tf.zeros([latentDimSize]).expandDims();
-  const generated = (decoderModel.predict(targetZ));
+    const targetZ = tf.zeros([latentDimSize]).expandDims();
+    const generated = (decoderModel.predict(targetZ));
 
-  await previewImage(generated.dataSync());
-  tf.dispose([targetZ, generated]);
+    await previewImage(generated.dataSync());
+    tf.dispose([targetZ, generated]);
   }
 
   async function saveDecoder(savePath, decoderModel) {
-  const decoderPath = path.join(savePath, 'decoder');
-  mkdirp.sync(decoderPath);
-  const saveURL = `file://${decoderPath}`;
-  console.log(`Saving decoder to ${saveURL}`);
-  await decoderModel.save(saveURL);
+    const decoderPath = path.join(savePath, 'decoder');
+    mkdirp.sync(decoderPath);
+    const saveURL = `file://${decoderPath}`;
+    console.log(`Saving decoder to ${saveURL}`);
+    await decoderModel.save(saveURL);
   }
 
   async function run(savePath, logDir) {
-  // Load the data
-  const dataPath = path.join(DATASET_PATH, TRAIN_IMAGES_FILE);
-  const images = await loadImages(dataPath);
-  console.log('Data Loaded', images.length);
-  await previewImage(images[5]);
-  await previewImage(images[50]);
-  await previewImage(images[500]);
-  // Start the training.
-  const vaeOpts = {
-    originalDim: IMAGE_FLAT_SIZE,
-    intermediateDim: INTERMEDIATE_DIM,
-    latentDim: LATENT_DIM
-  };
-  await train(images, vaeOpts, savePath, logDir);
+    // Load the data
+    const dataPath = path.join(DATASET_PATH, TRAIN_IMAGES_FILE);
+    const images = await loadImages(dataPath);
+    console.log('Data Loaded', images.length);
+    await previewImage(images[5]);
+    await previewImage(images[50]);
+    await previewImage(images[500]);
+    // Start the training.
+    const vaeOpts = {
+      originalDim: IMAGE_FLAT_SIZE,
+      intermediateDim: INTERMEDIATE_DIM,
+      latentDim: LATENT_DIM
+    };
+    await train(images, vaeOpts, savePath, logDir);
   }
 
-  (async function() {
-  const parser = new argparse.ArgumentParser();
-  parser.addArgument('--gpu', {
-    action: 'storeTrue',
-    help: 'Use tfjs-node-gpu for training (required CUDA and CuDNN)'
-  });
-  parser.addArgument('--epochs', {
-    type: 'int',
-    defaultValue: 100,
-    help: 'Number of epochs to train the model for'
-  });
-  parser.addArgument('--batchSize', {
-    type: 'int',
-    defaultValue: 256,
-    help: 'Batch size to be used during model training'
-  });
-  parser.addArgument('--logDir', {
-    type: 'string',
-    help: 'Directory to which the TensorBoard summaries will be saved ' +
+  (async function () {
+    const parser = new argparse.ArgumentParser();
+    parser.addArgument('--gpu', {
+      action: 'storeTrue',
+      help: 'Use tfjs-node-gpu for training (required CUDA and CuDNN)'
+    });
+    parser.addArgument('--epochs', {
+      type: 'int',
+      defaultValue: 100,
+      help: 'Number of epochs to train the model for'
+    });
+    parser.addArgument('--batchSize', {
+      type: 'int',
+      defaultValue: 256,
+      help: 'Batch size to be used during model training'
+    });
+    parser.addArgument('--logDir', {
+      type: 'string',
+      help: 'Directory to which the TensorBoard summaries will be saved ' +
         'during training.'
-  });
-  parser.addArgument('--savePath', {
-    type: 'string',
-    defaultValue: './models',
-    help: 'Directory to which the decoder part of the VAE model will ' +
+    });
+    parser.addArgument('--savePath', {
+      type: 'string',
+      defaultValue: './models',
+      help: 'Directory to which the decoder part of the VAE model will ' +
         'be saved after training. If the directory does not exist, it will be ' +
         'created.'
-  });
+    });
 
-  const args = parser.parseArgs();
-  epochs = args.epochs;
-  batchSize = args.batchSize;
+    const args = parser.parseArgs();
+    epochs = args.epochs;
+    batchSize = args.batchSize;
 
-  if (args.gpu) {
-    console.log('Training using GPU.');
-    tf = require('@tensorflow/tfjs-node-gpu');
-  } else {
-    console.log('Training using CPU.');
-    tf = require('@tensorflow/tfjs-node');
-  }
+    if (args.gpu) {
+      console.log('Training using GPU.');
+      tf = require('@tensorflow/tfjs-node-gpu');
+    } else {
+      console.log('Training using CPU.');
+      tf = require('@tensorflow/tfjs-node');
+    }
 
-  await run(args.savePath, args.logDir);
-  })();});
+    await run(args.savePath, args.logDir);
+  })();
+});
