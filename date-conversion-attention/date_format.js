@@ -261,6 +261,7 @@ export function encodeInputDateStrings(dateStrings) {
           throw new Error(`Unknown char: ${char}`);
         }
         // NOT one-hot encoded!
+        // We use an "embeddings" layer, hence we do not need to one-hot encode.  The embeddings are 64 nodes wide, while a one-hot would only be vocabulary-wide
         x.set(index, i, j);
       }
     }
