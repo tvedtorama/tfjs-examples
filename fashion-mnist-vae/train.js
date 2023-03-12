@@ -24,12 +24,15 @@ const argparse = require('argparse');
 // flag is specified.
 let tf;
 
-import('./data.js').then(exports => {
-  const { DATASET_PATH, TRAIN_IMAGES_FILE, IMAGE_FLAT_SIZE, loadImages, previewImage, batchImages, } = exports; const { encoder, decoder, vae, vaeLoss } = require('./model');
+import('./data.js').then(dataParameters => {
+  const { DATASET_PATH, TRAIN_IMAGES_FILE, IMAGE_FLAT_SIZE, loadImages, previewImage, batchImages, } = dataParameters;
+  const { encoder, decoder, vae, vaeLoss } = require('./model');
 
   let epochs; let batchSize;
 
-  const INTERMEDIATE_DIM = 512; const LATENT_DIM = 2;
+  const INTERMEDIATE_DIM = 512;
+  /** The width of the decoder input, and the definition of the "latent space" */
+  const LATENT_DIM = 2;
 
   /**
  * Train the auto encoder
@@ -67,7 +70,7 @@ import('./data.js').then(exports => {
     // instead of the more typical model.fit. We thus need to define an optimizer
     // and manage batching the data ourselves.
 
-    // Cteate the optimizer
+    // Create the optimizer
     const optimizer = tf.train.adam();
 
     // Group the data into batches.
@@ -90,6 +93,7 @@ import('./data.js').then(exports => {
         optimizer.minimize(() => {
           const outputs = vaeModel.apply(reshaped);
           const loss = vaeLoss(reshaped, outputs, vaeOpts);
+          // Write lots of dots to show progress, break the line after 50 iterations
           process.stdout.write('.');
           if (j % 50 === 0) {
             console.log('\nLoss:', loss.dataSync()[0]);
