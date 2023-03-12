@@ -40,17 +40,16 @@ const tf = require('@tensorflow/tfjs');
  * @returns {tf.LayersModel} the encoder model.
  */
 function encoder(opts) {
-  const {originalDim, intermediateDim, latentDim} = opts;
+  const { originalDim, intermediateDim, latentDim } = opts;
 
-  const inputs = tf.input({shape: [originalDim], name: 'encoder_input'});
-  const x = tf.layers.dense({units: intermediateDim, activation: 'relu'})
-                .apply(inputs);
-  const zMean = tf.layers.dense({units: latentDim, name: 'z_mean'}).apply(x);
-  const zLogVar =
-      tf.layers.dense({units: latentDim, name: 'z_log_var'}).apply(x);
+  const inputs = tf.input({ shape: [originalDim], name: 'encoder_input' });
+  const x = tf.layers.dense({ units: intermediateDim, activation: 'relu' })
+    .apply(inputs);
+  const zMean = tf.layers.dense({ units: latentDim, name: 'z_mean' }).apply(x);
+  const zLogVar = tf.layers.dense({ units: latentDim, name: 'z_log_var' }).apply(x);
 
   const z =
-      new ZLayer({name: 'z', outputShape: [latentDim]}).apply([zMean, zLogVar]);
+    new ZLayer({ name: 'z', outputShape: [latentDim] }).apply([zMean, zLogVar]);
 
   const enc = tf.model({
     inputs: inputs,
@@ -66,6 +65,7 @@ function encoder(opts) {
 /**
  * This layer implements the 'reparameterization trick' described in
  * https://blog.keras.io/building-autoencoders-in-keras.html.
+ * Or, better here: https://www.baeldung.com/cs/vae-reparameterization
  *
  * The implementation is in the call method.
  * Instead of sampling from Q(z|X):
@@ -79,7 +79,7 @@ class ZLayer extends tf.layers.Layer {
 
   computeOutputShape(inputShape) {
     tf.util.assert(inputShape.length === 2 && Array.isArray(inputShape[0]),
-        () => `Expected exactly 2 input shapes. But got: ${inputShape}`);
+      () => `Expected exactly 2 input shapes. But got: ${inputShape}`);
     return inputShape[0];
   }
 
@@ -99,9 +99,11 @@ class ZLayer extends tf.layers.Layer {
 
     const mean = 0;
     const std = 1.0;
+    // The reparameterization trick is about the insert of a separate parameter for the randomness, so that it does not disturb the back propagation?
     // sample epsilon = N(0, I)
-    const epsilon = tf.randomNormal([batch, dim], mean, std);
+    const epsilon = tf.randomNormal([batch, dim], mean, std); // called three times for each optimize callback.
 
+    // Note: multiplying the log(var) value with 0.5 before removing the log() takes the square root
     // z = z_mean + sqrt(var) * epsilon
     return zMean.add(zLogVar.mul(0.5).exp().mul(epsilon));
   }
@@ -122,13 +124,13 @@ tf.serialization.registerClass(ZLayer);
  * @param {number} opts.latentDim number of dimensions in latent space
  */
 function decoder(opts) {
-  const {originalDim, intermediateDim, latentDim} = opts;
+  const { originalDim, intermediateDim, latentDim } = opts;
 
   // The decoder model has a linear topology and hence could be constructed
   // with `tf.sequential()`. But we use the functional-model API (i.e.,
   // `tf.model()`) here nonetheless, for consistency with the encoder model
   // (see `encoder()` above).
-  const input = tf.input({shape: [latentDim]});
+  const input = tf.input({ shape: [latentDim] });
   let y = tf.layers.dense({
     units: intermediateDim,
     activation: 'relu'
@@ -137,7 +139,7 @@ function decoder(opts) {
     units: originalDim,
     activation: 'sigmoid'
   }).apply(y);
-  const dec = tf.model({inputs: input, outputs: y});
+  const dec = tf.model({ inputs: input, outputs: y });
 
   // console.log('Decoder Summary');
   // dec.summary();
@@ -184,9 +186,9 @@ function vaeLoss(inputs, outputs) {
     const zLogVar = outputs[2];
 
     // First we compute a 'reconstruction loss' terms. The goal of minimizing
-    // tihs term is to make the model outputs match the input data.
+    // this term is to make the model outputs match the input data.
     const reconstructionLoss =
-        tf.losses.meanSquaredError(inputs, decoderOutput).mul(originalDim);
+      tf.losses.meanSquaredError(inputs, decoderOutput).mul(originalDim);
 
     // binaryCrossEntropy can be used as an alternative loss function
     // const reconstructionLoss =
@@ -195,8 +197,10 @@ function vaeLoss(inputs, outputs) {
     // Next we compute the KL-divergence between zLogVar and zMean, minimizing
     // this term aims to make the distribution of latent variable more normally
     // distributed around the center of the latent space.
+    // The KL-divergence is a measure on how far a given sample set is from a given expected distribution.
+    // The zLogVar and zMean contains the values from the batch. (Or does it?)
     let klLoss = zLogVar.add(1).sub(zMean.square()).sub(zLogVar.exp());
-    klLoss = klLoss.sum(-1).mul(-0.5);
+    klLoss = klLoss.sum(-1).mul(-0.5);  // Sum reduces the tensor (along axis 1 (why -1?)).  Mul multiplies all numbers.
 
     return reconstructionLoss.add(klLoss).mean();
   });
