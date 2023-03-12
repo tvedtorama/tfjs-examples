@@ -81,7 +81,9 @@ function generateLatentSpace(dimensions, pointsPerDim, start, end) {
  */
 function decodeZ(inputTensor) {
   return tf.tidy(() => {
+    // Estimate images for the batch. Output: [30, 784] (30 images, of 785 B/W pixels [0, 255] each)
     const res = decoder.predict(inputTensor).mul(255).cast('int32');
+    // Convert to 2D images: [30, IMAGE_HEIGHT, IMAGE_WIDTH, 1] (reshape wraps source values into a target matrix.  Use -1 on one dimension to have that dimension's width calculated)
     const reshaped = res.reshape(
         [inputTensor.shape[0], IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_CHANNELS]);
     return reshaped;
@@ -93,6 +95,8 @@ function decodeZ(inputTensor) {
  * the result.
  *
  * Handles only 2D latent spaces
+ *
+ * @param {Tensor2D[]} latentSpace array of tensors/vectors (2) where the values are interpolated in each dimension.  ATW the two vectors will always be of the same length and values, in this app.  This does not have to be the case in the code.
  */
 async function renderLatentSpace(latentSpace) {
   document.getElementById('plot-area').innerText = '';
@@ -102,25 +106,30 @@ async function renderLatentSpace(latentSpace) {
   const xPlaceholder = Array(xAxis.shape[0]).fill(0);
   const yPlaceholder = Array(yAxis.shape[0]).fill(0);
 
+  // This weirdness creates xPlaceholder times <div class="row" />, ie the rows according to the user's choice
   const rows = d3Select('.plot-area').selectAll('div.row').data(xPlaceholder);
   const rEnter = rows.enter().append('div').attr('class', 'row');
-  rows.exit().remove();
+  rows.exit().remove();  // after exit() the cells that did not get touched are removed?
 
-  const cols = rEnter.selectAll('div.col').data(yPlaceholder);
-  cols.enter()
+  // This creates the canvas cells, by using the rEnter selection - that's already created.  Apparently, it ends up creating new cells (column) with a canvas.
+  const cells = rEnter.selectAll('div.col').data(yPlaceholder);
+  cells.enter()
       .append('div')
       .attr('class', 'col')
       .append('canvas')
       .attr('width', 50)
       .attr('height', 50);
 
-  // Generate images and render them to each canvas element
+  // Generate images and render them to each canvas element.
+  // Why this requires a merge call is very much unclear.
   rows.merge(rEnter).each(async function(rowZ, rowIndex) {
-    // Generate a batch of zVectors for each row.
+    // Generate a batch of zVectors for each row. Slice will copy out the given slice, from all dimensions, tile will repeat the matrix a given number of times in the list of dimension.
+    // zX will be the number at rowIndex, repeated yAxis.shape (1d) times.
     const zX = xAxis.slice(rowIndex, 1).tile(yAxis.shape);
+    // zBatch is a [30, 2] tensor, with all the identical x axis values, then all the yAxis values. These are the "latent vectors".
     const zBatch = zX.stack(yAxis).transpose();
     const batchImageTensor = decodeZ(zBatch);
-    const imageTensors = batchImageTensor.unstack();
+    const imageTensors = batchImageTensor.unstack(); // Convert the [30, 28, 28, 1] tensor into 30 arrays of [28, 28, 1]
 
     tf.dispose([zX, zBatch, batchImageTensor]);
 
